@@ -1,0 +1,28 @@
+{
+  "vectors": [
+    {
+      "name": "dorsalmail-transit",
+      "key_hex": "1111111111111111111111111111111111111111111111111111111111111111",
+      "product": "dorsalmail",
+      "method": "POST",
+      "path": "/transit",
+      "timestamp": 1730000000,
+      "nonce": "00112233445566778899aabb",
+      "body": "{\"payload\":\"ok\"}",
+      "canonical_hex": "646f7273616c6d61696c0a504f53540a2f7472616e7369740a313733303030303030300a3030313132323333343435353636373738383939616162620a7b227061796c6f6164223a226f6b227d",
+      "signature_hex": "12a91e83a4ffdd4710ef49bf837642fa8bf8767ac62a20e0ea31e335445b4582"
+    },
+    {
+      "name": "dorsalforms-submit",
+      "key_hex": "1111111111111111111111111111111111111111111111111111111111111111",
+      "product": "dorsalforms",
+      "method": "POST",
+      "path": "/submit",
+      "timestamp": 1730000200,
+      "nonce": "aabbccddeeff001122334455",
+      "body": "{\"form_id\":\"abc\"}",
+      "canonical_hex": "646f7273616c666f726d730a504f53540a2f7375626d69740a313733303030303230300a6161626263636464656566663030313132323333343435350a7b22666f726d5f6964223a22616263227d",
+      "signature_hex": "83d8d632b2607980665dba9c5c7df60c7edb3331a27b919158132dd801fe1832"
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "same_key_same_body": {
+    "request_fingerprint_hex": "1111111111111111111111111111111111111111111111111111111111111111",
+    "stored_fingerprint_hex": "1111111111111111111111111111111111111111111111111111111111111111",
+    "stored_status": 200,
+    "stored_body": "{\"id\":\"cached\"}",
+    "expected_outcome": "cached"
+  },
+  "same_key_different_body": {
+    "request_fingerprint_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "stored_fingerprint_hex": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "stored_status": 0,
+    "stored_body": "",
+    "expected_outcome": "conflict"
+  }
+}
