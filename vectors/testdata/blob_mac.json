@@ -1,9 +1,0 @@
-{
-  "blob_hmac_key_hex": "1111111111111111111111111111111111111111111111111111111111111111",
-  "payload": {
-    "attachment_count": 1,
-    "ciphertext_blob": "ciphertext",
-    "encrypted_dek": "dek"
-  },
-  "expected_mac": "43450df7cdfce4950e9f8f7108818d10299d438205982db5ef0ca27b3e7f84f7"
-}

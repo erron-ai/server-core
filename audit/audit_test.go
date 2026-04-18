@@ -8,18 +8,19 @@ import (
 	"github.com/google/uuid"
 )
 
-// mailRedactors reproduces the Mail product's table purely for core-level
-// testing; the real Mail redactor table lives in the server package.
-var mailRedactors = []Redactor{
+// sampleRedactors exercises the Redactor chain contract with two toy
+// patterns. server-core ships zero product-specific route literals; real
+// product redactor tables (for Mail, Forms, etc.) live in each consumer.
+var sampleRedactors = []Redactor{
 	func(path string) (string, bool) {
-		const prefix = "/v1/suppressions/"
+		const prefix = "/x/items/"
 		if strings.HasPrefix(path, prefix) {
-			return "/v1/suppressions/:id", true
+			return "/x/items/:id", true
 		}
 		return path, false
 	},
 	func(path string) (string, bool) {
-		const prefix = "/v1/secure/"
+		const prefix = "/x/doc/"
 		if !strings.HasPrefix(path, prefix) {
 			return path, false
 		}
@@ -27,17 +28,17 @@ var mailRedactors = []Redactor{
 		if rest == "" {
 			return path, false
 		}
-		if idx := strings.IndexByte(rest, '/'); idx >= 0 && rest[idx+1:] == "otp" {
-			return "/v1/secure/:token/otp", true
+		if idx := strings.IndexByte(rest, '/'); idx >= 0 && rest[idx+1:] == "step" {
+			return "/x/doc/:token/step", true
 		}
-		return "/v1/secure/:token", true
+		return "/x/doc/:token", true
 	},
 }
 
 func TestRedactPath_NoRedactorsIsIdentity(t *testing.T) {
 	t.Parallel()
 
-	cases := []string{"/v1/emails", "/v1/secure/abc123", "/v1/suppressions/abc"}
+	cases := []string{"/x/items", "/x/doc/abc123", "/x/items/abc"}
 	for _, in := range cases {
 		if got := RedactPath(in); got != in {
 			t.Fatalf("RedactPath(%q) with no redactors should be identity, got %q", in, got)
@@ -52,14 +53,14 @@ func TestRedactPath_WithRedactors(t *testing.T) {
 		input string
 		want  string
 	}{
-		{input: "/v1/emails", want: "/v1/emails"},
-		{input: "/v1/secure/token123", want: "/v1/secure/:token"},
-		{input: "/v1/secure/token123/otp", want: "/v1/secure/:token/otp"},
-		{input: "/v1/suppressions/alice@example.com", want: "/v1/suppressions/:id"},
+		{input: "/x/other", want: "/x/other"},
+		{input: "/x/doc/token123", want: "/x/doc/:token"},
+		{input: "/x/doc/token123/step", want: "/x/doc/:token/step"},
+		{input: "/x/items/some-id", want: "/x/items/:id"},
 	}
 
 	for _, tc := range cases {
-		if got := RedactPath(tc.input, mailRedactors...); got != tc.want {
+		if got := RedactPath(tc.input, sampleRedactors...); got != tc.want {
 			t.Fatalf("RedactPath(%q) = %q, want %q", tc.input, got, tc.want)
 		}
 	}
@@ -77,11 +78,11 @@ func TestEntryHashDeterministic(t *testing.T) {
 		OrgID:        &orgID,
 		ActorType:    "api_key",
 		ActorID:      "key-123",
-		Action:       "GET /v1/emails",
+		Action:       "GET /x/other",
 		Outcome:      "success",
 		Method:       "GET",
-		Path:         "/v1/emails",
-		RoutePattern: "/v1/emails",
+		Path:         "/x/other",
+		RoutePattern: "/x/other",
 		StatusCode:   200,
 		CreatedAt:    time.Unix(1710000000, 0).UTC(),
 	}

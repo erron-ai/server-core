@@ -42,17 +42,35 @@ func TestClassifyExistingInFlight(t *testing.T) {
 	}
 }
 
-func TestClassifyExistingNoStateAndEmptyRequest(t *testing.T) {
-	// No stored fingerprint at all — caller has nothing cached.
-	if got := ClassifyExisting(nil, nil, 0, nil); got.Outcome != OutcomeNoState {
-		t.Fatalf("expected no_state with empty stored fp, got %s", got.Outcome)
-	}
-	// Stored row but empty request fingerprint (pre-launch edge case) —
-	// conflict SHOULD NOT fire because we have nothing to compare against;
-	// fall through to the cached/in-flight classification based on stored body.
+// TestClassifyExisting_Edge is the D4 exit-criterion table test named by
+// plan §5.1: it covers the (empty-req-fp × nil-body × present-stored-fp)
+// corner and the "no stored state at all" corner, matching the HTTP
+// behaviour the server presents to idempotency callers.
+func TestClassifyExisting_Edge(t *testing.T) {
 	stored := FingerprintBody([]byte(`{"hello":"world"}`))
-	got := ClassifyExisting(nil, stored, 200, []byte(`{"ok":true}`))
-	if got.Outcome != OutcomeCached {
-		t.Fatalf("expected cached with empty req fp, got %s", got.Outcome)
+
+	cases := []struct {
+		name         string
+		requestFP    []byte
+		storedFP     []byte
+		storedStatus int
+		storedBody   []byte
+		want         Outcome
+	}{
+		{"no_state: empty stored fp", nil, nil, 0, nil, OutcomeNoState},
+		{"cached: empty req fp × present stored fp × body", nil, stored, 200, []byte(`{"ok":true}`), OutcomeCached},
+		{"in_flight: empty req fp × present stored fp × nil body", nil, stored, 0, nil, OutcomeInFlight},
+		{"in_flight: matching fps × nil body", stored, stored, 0, nil, OutcomeInFlight},
+		{"cached: matching fps × present body", stored, stored, 200, []byte(`{"ok":true}`), OutcomeCached},
+		{"conflict: mismatched fps", FingerprintBody([]byte(`{"a":1}`)), stored, 0, nil, OutcomeConflict},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			got := ClassifyExisting(tc.requestFP, tc.storedFP, tc.storedStatus, tc.storedBody)
+			if got.Outcome != tc.want {
+				t.Fatalf("ClassifyExisting = %s, want %s", got.Outcome, tc.want)
+			}
+		})
 	}
 }

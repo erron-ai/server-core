@@ -53,8 +53,8 @@ type Redactor func(path string) (string, bool)
 
 // RedactPath runs the supplied redactor chain in order and returns the first
 // match. If no redactor matches, the raw path is returned unchanged.
-// server-core ships zero built-in redactor literals — callers register their
-// own (see server/internal/api/audit.go for Mail's table).
+// server-core ships zero built-in redactor literals — each consuming product
+// registers its own redactor table.
 //
 // PII contract: callers MUST redact path segments that could contain tokens,
 // emails, subjects, or OTP codes before passing the result into EntryHash or
