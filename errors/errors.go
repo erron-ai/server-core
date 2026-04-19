@@ -38,6 +38,14 @@ const (
 	CodeBlobMACFailed             Code = "blob_mac_failed"
 	CodeBlobMACMissing            Code = "blob_mac_missing"
 	CodeBlobMACVerificationFailed Code = "blob_mac_verification_failed"
+	// CodeEnclaveReauthFailed marks the specific failure mode where the Go
+	// server detected a stale `AuthKey` — it retried the enclave request
+	// after rebootstrapping and still got a 401. This is distinct from
+	// `invalid_otp` (which means a real, user-supplied OTP was rejected)
+	// and from `CodeEnclaveError` (generic enclave-side error). The
+	// `/unlock` handler branches on it to rotate the auth key and alert
+	// ops rather than surfacing a misleading "bad OTP" to the caller.
+	CodeEnclaveReauthFailed Code = "enclave_reauth_failed"
 )
 
 var messages = map[string]string{
@@ -57,6 +65,7 @@ var messages = map[string]string{
 	string(CodeBlobMACFailed):             "The secure blob integrity check failed.",
 	string(CodeBlobMACMissing):            "The secure blob is missing its integrity MAC.",
 	string(CodeBlobMACVerificationFailed): "The secure blob integrity check failed.",
+	string(CodeEnclaveReauthFailed):       "The enclave authentication key could not be refreshed.",
 }
 
 type Error struct {

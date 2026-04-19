@@ -1,0 +1,111 @@
+{
+  "vectors": [
+    {
+      "name": "click_basic",
+      "key_hex": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "email_id": "11111111-2222-3333-4444-555555555555",
+      "target": "https://customer.example/landing",
+      "kind": "click",
+      "token": "v1.ERERESIiMzNERFVVVVVVVQ.42bd4f119ac710e7a54659d439334cbfc6b1e0d0640fb01f3c9fc63814e6d07e",
+      "url": "https://api.example.com/v1/tracking/click/v1.ERERESIiMzNERFVVVVVVVQ.42bd4f119ac710e7a54659d439334cbfc6b1e0d0640fb01f3c9fc63814e6d07e?u=https%3A%2F%2Fcustomer.example%2Flanding",
+      "verifies": true,
+      "base_url": "https://api.example.com"
+    },
+    {
+      "name": "click_query",
+      "key_hex": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "email_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+      "target": "https://customer.example/product?ref=abc",
+      "kind": "click",
+      "token": "v1.qqqqqru7zMzd3e7u7u7u7g.4ca25dbdf806c47847b465310b55be3d1154e3e8a4d6d980fa3403ac789fc728",
+      "url": "https://api.example.com/v1/tracking/click/v1.qqqqqru7zMzd3e7u7u7u7g.4ca25dbdf806c47847b465310b55be3d1154e3e8a4d6d980fa3403ac789fc728?u=https%3A%2F%2Fcustomer.example%2Fproduct%3Fref%3Dabc",
+      "verifies": true,
+      "base_url": "https://api.example.com"
+    },
+    {
+      "name": "pixel_basic",
+      "key_hex": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "email_id": "11111111-2222-3333-4444-555555555555",
+      "kind": "pixel",
+      "token": "v1.ERERESIiMzNERFVVVVVVVQ.4af34aa61cb5d0ca7015a2882dce7545448a96c82bdb55a440c6d5942cc3ff22",
+      "url": "https://api.example.com/v1/tracking/pixel/v1.ERERESIiMzNERFVVVVVVVQ.4af34aa61cb5d0ca7015a2882dce7545448a96c82bdb55a440c6d5942cc3ff22",
+      "verifies": true,
+      "base_url": "https://api.example.com"
+    },
+    {
+      "name": "pixel_other",
+      "key_hex": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "email_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+      "kind": "pixel",
+      "token": "v1.qqqqqru7zMzd3e7u7u7u7g.e8ef84b388d8551d1b799323212b5cdab007564edf867fc09a9cdeedc480872d",
+      "url": "https://api.example.com/v1/tracking/pixel/v1.qqqqqru7zMzd3e7u7u7u7g.e8ef84b388d8551d1b799323212b5cdab007564edf867fc09a9cdeedc480872d",
+      "verifies": true,
+      "base_url": "https://api.example.com"
+    },
+    {
+      "name": "click_target_mutated",
+      "key_hex": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "email_id": "11111111-2222-3333-4444-555555555555",
+      "target": "https://attacker.example/",
+      "kind": "click",
+      "token": "v1.ERERESIiMzNERFVVVVVVVQ.42bd4f119ac710e7a54659d439334cbfc6b1e0d0640fb01f3c9fc63814e6d07e",
+      "url": "https://api.example.com/v1/tracking/click/v1.ERERESIiMzNERFVVVVVVVQ.42bd4f119ac710e7a54659d439334cbfc6b1e0d0640fb01f3c9fc63814e6d07e?u=https%3A%2F%2Fcustomer.example%2Flanding",
+      "verifies": false,
+      "base_url": "https://api.example.com"
+    },
+    {
+      "name": "click_wrong_key",
+      "key_hex": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+      "email_id": "11111111-2222-3333-4444-555555555555",
+      "target": "https://customer.example/landing",
+      "kind": "click",
+      "token": "v1.ERERESIiMzNERFVVVVVVVQ.42bd4f119ac710e7a54659d439334cbfc6b1e0d0640fb01f3c9fc63814e6d07e",
+      "url": "https://api.example.com/v1/tracking/click/v1.ERERESIiMzNERFVVVVVVVQ.42bd4f119ac710e7a54659d439334cbfc6b1e0d0640fb01f3c9fc63814e6d07e?u=https%3A%2F%2Fcustomer.example%2Flanding",
+      "verifies": false,
+      "base_url": "https://api.example.com"
+    },
+    {
+      "name": "click_uses_pixel_token",
+      "key_hex": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "email_id": "11111111-2222-3333-4444-555555555555",
+      "target": "https://customer.example/landing",
+      "kind": "click",
+      "token": "v1.ERERESIiMzNERFVVVVVVVQ.4af34aa61cb5d0ca7015a2882dce7545448a96c82bdb55a440c6d5942cc3ff22",
+      "url": "https://api.example.com/v1/tracking/pixel/v1.ERERESIiMzNERFVVVVVVVQ.4af34aa61cb5d0ca7015a2882dce7545448a96c82bdb55a440c6d5942cc3ff22",
+      "verifies": false,
+      "base_url": "https://api.example.com"
+    },
+    {
+      "name": "click_truncated_tag",
+      "key_hex": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "email_id": "11111111-2222-3333-4444-555555555555",
+      "target": "https://customer.example/landing",
+      "kind": "click",
+      "token": "v1.ERERESIiMzNERFVVVVVVVQ.42bd4f119ac710e7a54659d439334cbf",
+      "url": "https://api.example.com/v1/tracking/click/v1.ERERESIiMzNERFVVVVVVVQ.42bd4f119ac710e7a54659d439334cbfc6b1e0d0640fb01f3c9fc63814e6d07e?u=https%3A%2F%2Fcustomer.example%2Flanding",
+      "verifies": false,
+      "base_url": "https://api.example.com"
+    },
+    {
+      "name": "pixel_wrong_key",
+      "key_hex": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+      "email_id": "11111111-2222-3333-4444-555555555555",
+      "kind": "pixel",
+      "token": "v1.ERERESIiMzNERFVVVVVVVQ.4af34aa61cb5d0ca7015a2882dce7545448a96c82bdb55a440c6d5942cc3ff22",
+      "url": "https://api.example.com/v1/tracking/pixel/v1.ERERESIiMzNERFVVVVVVVQ.4af34aa61cb5d0ca7015a2882dce7545448a96c82bdb55a440c6d5942cc3ff22",
+      "verifies": false,
+      "base_url": "https://api.example.com"
+    },
+    {
+      "name": "click_wrong_version",
+      "key_hex": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "email_id": "11111111-2222-3333-4444-555555555555",
+      "target": "https://customer.example/landing",
+      "kind": "click",
+      "token": "v0.ERERESIiMzNERFVVVVVVVQ.42bd4f119ac710e7a54659d439334cbfc6b1e0d0640fb01f3c9fc63814e6d07e",
+      "url": "https://api.example.com/v1/tracking/click/v1.ERERESIiMzNERFVVVVVVVQ.42bd4f119ac710e7a54659d439334cbfc6b1e0d0640fb01f3c9fc63814e6d07e?u=https%3A%2F%2Fcustomer.example%2Flanding",
+      "verifies": false,
+      "base_url": "https://api.example.com"
+    }
+  ]
+}

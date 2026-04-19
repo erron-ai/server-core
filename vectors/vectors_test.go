@@ -14,8 +14,72 @@ import (
 	coreauth "github.com/dorsalmail/server-core/auth"
 	corebootstrap "github.com/dorsalmail/server-core/bootstrap"
 	coreplay "github.com/dorsalmail/server-core/replay"
+	coretracking "github.com/dorsalmail/server-core/tracking"
 	"github.com/google/uuid"
 )
+
+type clickVector struct {
+	Name     string `json:"name"`
+	KeyHex   string `json:"key_hex"`
+	EmailID  string `json:"email_id"`
+	Target   string `json:"target"`
+	Kind     string `json:"kind"`
+	Token    string `json:"token"`
+	URL      string `json:"url"`
+	Verifies bool   `json:"verifies"`
+	BaseURL  string `json:"base_url"`
+}
+
+type clickVectorFile struct {
+	Vectors []clickVector `json:"vectors"`
+}
+
+func TestVectorsTrackingClickV1(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("testdata", "click_v1.json"))
+	if err != nil {
+		t.Fatalf("read click_v1.json: %v", err)
+	}
+	var file clickVectorFile
+	if err := json.Unmarshal(raw, &file); err != nil {
+		t.Fatalf("unmarshal click_v1.json: %v", err)
+	}
+	if len(file.Vectors) < 5 {
+		t.Fatalf("expected >= 5 vectors, got %d", len(file.Vectors))
+	}
+	for _, v := range file.Vectors {
+		t.Run(v.Name, func(t *testing.T) {
+			id := uuid.MustParse(v.EmailID)
+			switch v.Kind {
+			case "click":
+				gotID, err := coretracking.VerifyClickRequest(v.Token, v.Target, v.KeyHex)
+				if v.Verifies {
+					if err != nil {
+						t.Fatalf("expected verify success: %v", err)
+					}
+					if gotID != id {
+						t.Fatalf("id mismatch: %v vs %v", gotID, id)
+					}
+				} else if err == nil {
+					t.Fatal("expected verify failure")
+				}
+			case "pixel":
+				gotID, err := coretracking.VerifyPixelRequest(v.Token, v.KeyHex)
+				if v.Verifies {
+					if err != nil {
+						t.Fatalf("expected verify success: %v", err)
+					}
+					if gotID != id {
+						t.Fatalf("id mismatch")
+					}
+				} else if err == nil {
+					t.Fatal("expected verify failure")
+				}
+			default:
+				t.Fatalf("unknown vector kind %q", v.Kind)
+			}
+		})
+	}
+}
 
 func TestVectorsCanonicalRequest(t *testing.T) {
 	signed, err := coreauth.SignRequest(

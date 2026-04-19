@@ -1,9 +1,45 @@
 package replay
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
+	"time"
 )
+
+func TestAttemptCounter_memoryPath(t *testing.T) {
+	t.Parallel()
+	key := "attempt:" + t.Name()
+	ctx := context.Background()
+	c1, blocked, err := AttemptCounter(ctx, nil, key, time.Minute, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c1 != 1 || blocked {
+		t.Fatalf("got count=%d blocked=%v", c1, blocked)
+	}
+	c2, blocked, err := AttemptCounter(ctx, nil, key, time.Minute, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c2 != 2 || blocked {
+		t.Fatalf("got count=%d blocked=%v", c2, blocked)
+	}
+	c3, blocked, err := AttemptCounter(ctx, nil, key, time.Minute, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c3 != 3 || !blocked {
+		t.Fatalf("got count=%d blocked=%v want blocked", c3, blocked)
+	}
+	if err := Reset(ctx, nil, key); err != nil {
+		t.Fatal(err)
+	}
+	after, _, err := AttemptCounter(ctx, nil, key, time.Minute, 0)
+	if err != nil || after != 1 {
+		t.Fatalf("after reset count=%d err=%v", after, err)
+	}
+}
 
 func TestFingerprintBodyDeterministic(t *testing.T) {
 	first := FingerprintBody([]byte(`{"hello":"world"}`))

@@ -11,8 +11,11 @@ package replay
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/json"
+	"sync"
+	"time"
 )
 
 // Outcome is the classification result of an idempotency-cache lookup.
@@ -41,6 +44,81 @@ func FingerprintBody(raw []byte) []byte {
 	sum := sha256.Sum256(raw)
 	return sum[:]
 }
+
+// RedisLike is the minimal Redis client surface AttemptCounter
+// requires. Match the product's existing redisx.Client interface so a
+// type assertion is unnecessary.
+type RedisLike interface {
+	IncrementExpiringCounter(ctx context.Context, key string, ttl time.Duration) (int, error)
+	Delete(ctx context.Context, key string) error
+}
+
+// AttemptCounter increments a Redis-first counter with a sliding TTL
+// and returns (count, blocked). When `rdb` is nil the function falls
+// back to an in-process counter so dev/test environments without
+// Redis still get deterministic behaviour. When `rdb` is non-nil and
+// unreachable, the error is propagated — callers MUST fail closed.
+//
+// `blocked` is true iff count > max. The 0-value max disables the
+// block decision (count is still returned).
+func AttemptCounter(ctx context.Context, rdb RedisLike, key string, ttl time.Duration, max int) (count int, blocked bool, err error) {
+	if rdb != nil {
+		c, err := rdb.IncrementExpiringCounter(ctx, key, ttl)
+		if err != nil {
+			return 0, false, err
+		}
+		return c, max > 0 && c > max, nil
+	}
+	c := memoryCounters.increment(key, ttl)
+	return c, max > 0 && c > max, nil
+}
+
+// Reset clears the per-key counter after a successful operation.
+// When `rdb` is nil this clears the in-process counter.
+func Reset(ctx context.Context, rdb RedisLike, key string) error {
+	if rdb != nil {
+		return rdb.Delete(ctx, key)
+	}
+	memoryCounters.reset(key)
+	return nil
+}
+
+type memoryCounter struct {
+	count    int
+	expireAt time.Time
+}
+
+type memoryCounterStore struct {
+	mu sync.Mutex
+	m  map[string]*memoryCounter
+}
+
+func (s *memoryCounterStore) increment(key string, ttl time.Duration) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.m == nil {
+		s.m = map[string]*memoryCounter{}
+	}
+	now := time.Now()
+	c, ok := s.m[key]
+	if !ok || (!c.expireAt.IsZero() && now.After(c.expireAt)) {
+		c = &memoryCounter{}
+		s.m[key] = c
+	}
+	c.count++
+	if ttl > 0 {
+		c.expireAt = now.Add(ttl)
+	}
+	return c.count
+}
+
+func (s *memoryCounterStore) reset(key string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.m, key)
+}
+
+var memoryCounters = &memoryCounterStore{}
 
 // ClassifyExisting compares the in-flight fingerprint against the stored row
 // and returns the idempotency decision for the handler to act on.
