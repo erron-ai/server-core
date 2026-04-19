@@ -28,7 +28,7 @@ import (
 
 	"github.com/google/uuid"
 
-	coreerrors "github.com/dorsalmail/server-core/errors"
+	coreerrors "github.com/erron-ai/server-core/errors"
 )
 
 const (

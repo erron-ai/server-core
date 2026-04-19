@@ -15,7 +15,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/dorsalmail/server-core/audit"
+	"github.com/erron-ai/server-core/audit"
 )
 
 func main() {

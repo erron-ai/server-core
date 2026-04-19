@@ -5,7 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/dorsalmail/server-core/httphdr"
+	"github.com/erron-ai/server-core/httphdr"
 )
 
 func TestSecurityHeaders(t *testing.T) {

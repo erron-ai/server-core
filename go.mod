@@ -1,4 +1,4 @@
-module github.com/dorsalmail/server-core
+module github.com/erron-ai/server-core
 
 go 1.25.9
 

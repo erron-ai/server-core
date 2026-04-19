@@ -9,12 +9,12 @@ import (
 	"testing"
 	"time"
 
-	coreattest "github.com/dorsalmail/server-core/attest"
-	coreaudit "github.com/dorsalmail/server-core/audit"
-	coreauth "github.com/dorsalmail/server-core/auth"
-	corebootstrap "github.com/dorsalmail/server-core/bootstrap"
-	coreplay "github.com/dorsalmail/server-core/replay"
-	coretracking "github.com/dorsalmail/server-core/tracking"
+	coreattest "github.com/erron-ai/server-core/attest"
+	coreaudit "github.com/erron-ai/server-core/audit"
+	coreauth "github.com/erron-ai/server-core/auth"
+	corebootstrap "github.com/erron-ai/server-core/bootstrap"
+	coreplay "github.com/erron-ai/server-core/replay"
+	coretracking "github.com/erron-ai/server-core/tracking"
 	"github.com/google/uuid"
 )
 

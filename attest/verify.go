@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	corecfg "github.com/dorsalmail/server-core/config"
+	corecfg "github.com/erron-ai/server-core/config"
 )
 
 // DefaultAttestationMaxAge is the maximum age for an NSM attestation document
