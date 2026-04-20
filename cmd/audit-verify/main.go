@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"time"
 
@@ -19,15 +20,24 @@ import (
 )
 
 func main() {
-	dsn := flag.String("dsn", "", "Postgres DSN (required)")
-	orgFlag := flag.String("org", "", "single org UUID to verify (default: every org)")
-	emitJSON := flag.Bool("json", false, "emit per-chain results as JSON")
-	timeout := flag.Duration("timeout", 5*time.Minute, "context timeout for the verify run")
-	flag.Parse()
+	os.Exit(run(os.Args[1:]))
+}
+
+func run(args []string) int {
+	fs := flag.NewFlagSet("audit-verify", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	dsn := fs.String("dsn", "", "Postgres DSN (required)")
+	orgFlag := fs.String("org", "", "single org UUID to verify (default: every org)")
+	emitJSON := fs.Bool("json", false, "emit per-chain results as JSON")
+	timeout := fs.Duration("timeout", 5*time.Minute, "context timeout for the verify run")
+	if err := fs.Parse(args); err != nil {
+		fmt.Fprintln(os.Stderr, "usage: audit-verify --dsn postgres://... [--org UUID] [--json]")
+		return 2
+	}
 
 	if *dsn == "" {
 		fmt.Fprintln(os.Stderr, "usage: audit-verify --dsn postgres://... [--org UUID] [--json]")
-		os.Exit(2)
+		return 2
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), *timeout)
@@ -36,7 +46,7 @@ func main() {
 	pool, err := pgxpool.New(ctx, *dsn)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "audit-verify: connect: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
 	defer pool.Close()
 
@@ -45,14 +55,14 @@ func main() {
 		id, err := uuid.Parse(*orgFlag)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "audit-verify: bad --org: %v\n", err)
-			os.Exit(2)
+			return 2
 		}
 		orgs = append(orgs, &id)
 	} else {
 		orgs, err = listOrgs(ctx, pool)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "audit-verify: list orgs: %v\n", err)
-			os.Exit(1)
+			return 1
 		}
 	}
 
@@ -62,7 +72,7 @@ func main() {
 		v, err := audit.VerifyChain(ctx, pool, org)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "audit-verify: %v: %v\n", orgString(org), err)
-			os.Exit(1)
+			return 1
 		}
 		report := map[string]any{
 			"org":   orgString(org),
@@ -80,8 +90,9 @@ func main() {
 		}
 	}
 	if hadViolation {
-		os.Exit(1)
+		return 1
 	}
+	return 0
 }
 
 func listOrgs(ctx context.Context, pool *pgxpool.Pool) ([]*uuid.UUID, error) {

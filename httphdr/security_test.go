@@ -35,14 +35,18 @@ func TestSecurityHeaders_CallsNext(t *testing.T) {
 	called := false
 	handler := httphdr.SecurityHeaders()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		called = true
-		w.WriteHeader(http.StatusNoContent)
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
 	}))
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
 	if !called {
 		t.Fatal("SecurityHeaders must call the next handler")
 	}
-	if rec.Code != http.StatusNoContent {
-		t.Fatalf("want 204, got %d", rec.Code)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d", rec.Code)
+	}
+	if rec.Body.String() != "ok" {
+		t.Fatalf("body = %q", rec.Body.String())
 	}
 }

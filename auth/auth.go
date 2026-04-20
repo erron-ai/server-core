@@ -170,15 +170,15 @@ func SignedHeaders(hexKey, product, method, path string, body []byte, options Si
 func ParseHeaders(headers http.Header) (ParsedHeaders, error) {
 	timestamp := strings.TrimSpace(headers.Get(HeaderTimestamp))
 	if timestamp == "" {
-		return ParsedHeaders{}, coreerrors.New(coreerrors.CodeInvalidField, "missing X-Vault-Timestamp header")
+		return ParsedHeaders{}, coreerrors.New(coreerrors.CodeMissingTimestamp, "")
 	}
 	nonce := strings.TrimSpace(headers.Get(HeaderNonce))
 	if nonce == "" {
-		return ParsedHeaders{}, coreerrors.New(coreerrors.CodeInvalidField, "missing X-Vault-Nonce header")
+		return ParsedHeaders{}, coreerrors.New(coreerrors.CodeMissingNonce, "")
 	}
 	signature := strings.TrimSpace(headers.Get(HeaderSignature))
 	if signature == "" {
-		return ParsedHeaders{}, coreerrors.New(coreerrors.CodeInvalidField, "missing X-Vault-Sig header")
+		return ParsedHeaders{}, coreerrors.New(coreerrors.CodeMissingSignature, "")
 	}
 
 	parsedTimestamp, err := strconv.ParseInt(timestamp, 10, 64)
@@ -189,7 +189,7 @@ func ParseHeaders(headers http.Header) (ParsedHeaders, error) {
 		return ParsedHeaders{}, err
 	}
 	if _, err := hex.DecodeString(signature); err != nil {
-		return ParsedHeaders{}, coreerrors.Wrap(coreerrors.CodeInvalidField, "invalid X-Vault-Sig", err)
+		return ParsedHeaders{}, coreerrors.Wrap(coreerrors.CodeInvalidSignature, "invalid X-Vault-Sig", err)
 	}
 	return ParsedHeaders{
 		Timestamp: parsedTimestamp,
@@ -325,7 +325,17 @@ func VerifyBlobPayload(raw []byte, hexKey string) (map[string]any, error) {
 // values (see zero-knowledge invariant).
 func VerifyBlobMap(payload map[string]any, hexKey string) (map[string]any, error) {
 	cloned := cloneMap(payload)
-	storedMAC, _ := cloned[blobMACFieldName].(string)
+	rawMAC, ok := cloned[blobMACFieldName]
+	if !ok {
+		return nil, coreerrors.New(
+			coreerrors.CodeBlobMACMissing,
+			"blob_mac missing: blob may be tampered or pre-dates MAC enforcement",
+		)
+	}
+	storedMAC, ok := rawMAC.(string)
+	if !ok {
+		return nil, coreerrors.New(coreerrors.CodeInvalidField, "blob_mac must be a JSON string")
+	}
 	if strings.TrimSpace(storedMAC) == "" {
 		return nil, coreerrors.New(
 			coreerrors.CodeBlobMACMissing,
@@ -353,10 +363,10 @@ func VerifyBlobMap(payload map[string]any, hexKey string) (map[string]any, error
 func decodeHexKey(hexKey string) ([]byte, error) {
 	keyBytes, err := hex.DecodeString(strings.TrimSpace(hexKey))
 	if err != nil {
-		return nil, fmt.Errorf("invalid hex key: %w", err)
+		return nil, coreerrors.Wrap(coreerrors.CodeInvalidField, "invalid hex key", err)
 	}
 	if len(keyBytes) != 32 {
-		return nil, fmt.Errorf("hex key must decode to 32 bytes, got %d", len(keyBytes))
+		return nil, coreerrors.New(coreerrors.CodeInvalidField, fmt.Sprintf("hex key must decode to 32 bytes, got %d", len(keyBytes)))
 	}
 	return keyBytes, nil
 }

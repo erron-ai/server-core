@@ -1,7 +1,11 @@
 package nethttpx
 
 import (
+	"context"
+	"errors"
 	"net"
+	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -80,6 +84,86 @@ func TestValidatePublicURL_Schemes(t *testing.T) {
 	}
 	if err := ValidatePublicURL("https://example.com/", true); err != nil {
 		t.Fatalf("https public must pass: %v", err)
+	}
+}
+
+func TestValidatePublicURL_ProductionHTTPErrorMessage(t *testing.T) {
+	t.Parallel()
+	err := ValidatePublicURL("http://example.com/", true)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if err.Error() != "nethttpx: production url must use https" {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestValidatePublicURL_LiteralIP127ProductionBlocked(t *testing.T) {
+	t.Parallel()
+	err := ValidatePublicURL("https://127.0.0.1/", true)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !errors.Is(err, ErrBlockedAddress) {
+		t.Fatalf("want ErrBlockedAddress, got %v", err)
+	}
+}
+
+func TestValidatePublicURL_UserinfoURLDoesNotPanic(t *testing.T) {
+	t.Parallel()
+	// Hostname is example.com; userinfo is ignored for resolution.
+	if err := ValidatePublicURL("https://user@example.com", true); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestIsBlockedIP_Nil(t *testing.T) {
+	t.Parallel()
+	if !IsBlockedIP(nil) {
+		t.Fatal("nil IP must be blocked")
+	}
+}
+
+func TestIsBlockedIP_172Boundary(t *testing.T) {
+	t.Parallel()
+	if IsBlockedIP(net.ParseIP("172.15.255.255")) {
+		t.Fatal("172.15.0.0/16 must not be private")
+	}
+	if !IsBlockedIP(net.ParseIP("172.16.0.1")) {
+		t.Fatal("172.16.0.0/12 must be blocked")
+	}
+}
+
+func TestIsBlockedIP_IMDSIPv4(t *testing.T) {
+	t.Parallel()
+	if !IsBlockedIP(net.ParseIP("169.254.169.254")) {
+		t.Fatal("IMDS must be blocked")
+	}
+}
+
+func TestDialContextForPublic_UnsupportedRemoteAddrType(t *testing.T) {
+	t.Parallel()
+	tmp := t.TempDir()
+	sock := filepath.Join(tmp, "s.sock")
+	ln, err := net.Listen("unix", sock)
+	if err != nil {
+		t.Skipf("unix socket listen: %v", err)
+	}
+	defer ln.Close()
+	go func() {
+		c, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		_ = c.Close()
+	}()
+	dial := DialContextForPublic(true)
+	_, err = dial(context.Background(), "unix", sock)
+	if err == nil {
+		t.Fatal("expected error for non-TCP/UDP remote addr")
+	}
+	if !strings.Contains(err.Error(), "unsupported address type") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 

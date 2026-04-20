@@ -48,6 +48,79 @@ func TestBearerUnconfiguredReturns503(t *testing.T) {
 	if rec.Code != 503 {
 		t.Fatalf("want 503, got %d", rec.Code)
 	}
+	if rec.Body.String() != uniformResponseUnconfigured {
+		t.Fatalf("body = %q", rec.Body.String())
+	}
+	if ct := rec.Header().Get("Content-Type"); ct != "application/json" {
+		t.Fatalf("Content-Type = %q", ct)
+	}
+}
+
+func TestMiddleware_UnconfiguredSecret_503JSONAndBodyExact(t *testing.T) {
+	t.Parallel()
+	assertUnconfigured := func(t *testing.T, h http.Handler) {
+		t.Helper()
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest("GET", "/", nil)
+		h.ServeHTTP(rec, req)
+		if rec.Code != http.StatusServiceUnavailable {
+			t.Fatalf("code = %d", rec.Code)
+		}
+		if rec.Body.String() != uniformResponseUnconfigured {
+			t.Fatalf("body = %q", rec.Body.String())
+		}
+		if ct := rec.Header().Get("Content-Type"); ct != "application/json" {
+			t.Fatalf("Content-Type = %q", ct)
+		}
+	}
+	t.Run("Bearer", func(t *testing.T) {
+		t.Parallel()
+		called := false
+		h := BearerTokenMiddleware("")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			called = true
+		}))
+		assertUnconfigured(t, h)
+		if called {
+			t.Fatal("next must not run")
+		}
+	})
+	t.Run("HeaderToken", func(t *testing.T) {
+		t.Parallel()
+		called := false
+		h := HeaderTokenMiddleware("X-Token", "")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			called = true
+		}))
+		assertUnconfigured(t, h)
+		if called {
+			t.Fatal("next must not run")
+		}
+	})
+}
+
+func TestBearer_NoAuthorizationHeader_401(t *testing.T) {
+	t.Parallel()
+	mw := BearerTokenMiddleware("secret")(okHandler())
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/", nil)
+	mw.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("code = %d", rec.Code)
+	}
+	if rec.Body.String() != uniformResponseUnauthorized {
+		t.Fatalf("body = %q", rec.Body.String())
+	}
+}
+
+func TestBearer_AuthorizationBearerNoSpace_401(t *testing.T) {
+	t.Parallel()
+	mw := BearerTokenMiddleware("secret")(okHandler())
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/", nil)
+	req.Header.Set("Authorization", "Bearer")
+	mw.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("code = %d", rec.Code)
+	}
 }
 
 func TestHeaderTokenMatch(t *testing.T) {

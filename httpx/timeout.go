@@ -72,11 +72,16 @@ func (h *timeoutHandler) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	case <-ctx.Done():
 		tw.mu.Lock()
 		defer tw.mu.Unlock()
-		if ctx.Err() == context.DeadlineExceeded && !tw.wroteHeader {
+		switch {
+		case ctx.Err() == context.DeadlineExceeded && !tw.wroteHeader:
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusGatewayTimeout)
 			_, _ = io.WriteString(w, `{"error":"gateway_timeout"}`)
 			tw.err = http.ErrHandlerTimeout
+		case ctx.Err() == context.Canceled && !tw.wroteHeader:
+			// No synthetic status — match net/http.TimeoutHandler: further
+			// handler writes fail with the context error.
+			tw.err = context.Canceled
 		}
 	}
 }

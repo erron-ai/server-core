@@ -82,3 +82,64 @@ func TestParseAndVerifyProductionRejectsNonCOSEGarbage(t *testing.T) {
 		t.Fatalf("want ErrMalformedDoc, got %v", err)
 	}
 }
+
+func TestParseAndVerify_Dev_MaxAgeZeroSkipsTooOld(t *testing.T) {
+	t.Setenv("ENVIRONMENT", "development")
+	nonce := []byte{1, 2, 3, 4, 5}
+	now := time.Now().UTC()
+	old := now.Add(-2 * time.Hour).Unix()
+	doc := mockDoc(nonce, old, map[int][]byte{0: {0xaa}})
+	_, err := ParseAndVerify(doc, nonce, nil, 0, now)
+	if err != nil {
+		t.Fatalf("maxAge=0 must not return ErrTooOld: %v", err)
+	}
+}
+
+func TestParseAndVerify_Dev_NilAllowSkipsPCRMatching(t *testing.T) {
+	t.Setenv("ENVIRONMENT", "development")
+	nonce := []byte{1, 2, 3, 4, 5}
+	now := time.Now().UTC()
+	doc := mockDoc(nonce, now.Unix(), map[int][]byte{0: {0xde}})
+	_, err := ParseAndVerify(doc, nonce, nil, time.Minute, now)
+	if err != nil {
+		t.Fatalf("nil allowlist must skip PCR check: %v", err)
+	}
+}
+
+func TestParseAndVerify_Production_PCRMismatch(t *testing.T) {
+	t.Setenv("ENVIRONMENT", "production")
+	prev := verifyNitroCOSEFunc
+	verifyNitroCOSEFunc = func([]byte, []byte, []byte, []PCRSet, time.Duration, time.Time) (Measurements, error) {
+		return Measurements{}, ErrPCRMismatch
+	}
+	t.Cleanup(func() { verifyNitroCOSEFunc = prev })
+
+	allow := []PCRSet{{0: {0xaa}}}
+	_, err := ParseAndVerify([]byte("stub-cose"), []byte("nonce"), allow, time.Minute, time.Now())
+	if err == nil {
+		t.Fatal("expected ErrPCRMismatch")
+	}
+	if !errors.Is(err, ErrPCRMismatch) {
+		t.Fatalf("want ErrPCRMismatch, got %v", err)
+	}
+}
+
+func TestErrorCode_Table(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		err  error
+		want string
+	}{
+		{ErrNoAllowlist, "attest_no_allowlist"},
+		{ErrChainUnverified, "attest_chain_unverified"},
+		{ErrNonceMismatch, "attest_nonce_mismatch"},
+		{ErrPCRMismatch, "attest_pcr_mismatch"},
+		{ErrTooOld, "attest_too_old"},
+		{ErrMalformedDoc, "attest_malformed_doc"},
+	}
+	for _, tc := range cases {
+		if got := ErrorCode(tc.err); got != tc.want {
+			t.Fatalf("ErrorCode(%v) = %q, want %q", tc.err, got, tc.want)
+		}
+	}
+}

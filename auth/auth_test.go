@@ -1,12 +1,16 @@
 package auth
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"testing"
 	"time"
 
+	coreerrors "github.com/erron-ai/server-core/errors"
 	"github.com/google/uuid"
 )
 
@@ -186,5 +190,252 @@ func TestVerifyBlobMapRejectsTamper(t *testing.T) {
 
 	if _, err := VerifyBlobMap(payload, testKeyHex); err == nil {
 		t.Fatal("expected tamper verification error")
+	}
+}
+
+func TestSignRequest_InvalidHexKey(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name string
+		key  string
+	}{
+		{name: "wrongLenHex", key: "ab"},
+		{name: "invalidHex", key: "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			_, err := SignRequest(tc.key, "dorsalmail", http.MethodPost, "/x", []byte(`{}`), SignOptions{
+				Nonce: "00112233445566778899aabb",
+			})
+			if err == nil {
+				t.Fatal("expected error")
+			}
+			if coreerrors.CodeOf(err) != string(coreerrors.CodeInvalidField) {
+				t.Fatalf("code = %q, want invalid_field", coreerrors.CodeOf(err))
+			}
+		})
+	}
+}
+
+func TestSignRequest_DeterministicSignature(t *testing.T) {
+	t.Parallel()
+	fixed := time.Unix(1_700_000_000, 0).UTC()
+	signed, err := SignRequest(testKeyHex, "dorsalmail", http.MethodPost, "/transit", []byte(`{"a":1}`), SignOptions{
+		Now:   fixed,
+		Nonce: "00112233445566778899aabb",
+	})
+	if err != nil {
+		t.Fatalf("SignRequest: %v", err)
+	}
+	keyBytes, err := hex.DecodeString(testKeyHex)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mac := hmac.New(sha256.New, keyBytes)
+	_, _ = mac.Write(signed.Canonical)
+	want := hex.EncodeToString(mac.Sum(nil))
+	if signed.Signature != want {
+		t.Fatalf("signature mismatch\n got: %s\nwant: %s", signed.Signature, want)
+	}
+}
+
+func TestParseHeaders_MissingHeaderCodes(t *testing.T) {
+	t.Parallel()
+	base := func() http.Header {
+		h := make(http.Header)
+		h.Set(HeaderTimestamp, "1")
+		h.Set(HeaderNonce, "00112233445566778899aabb")
+		h.Set(HeaderSignature, "ab")
+		return h
+	}
+	t.Run("missing timestamp", func(t *testing.T) {
+		h := base()
+		h.Del(HeaderTimestamp)
+		_, err := ParseHeaders(h)
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if coreerrors.CodeOf(err) != string(coreerrors.CodeMissingTimestamp) {
+			t.Fatalf("code = %q", coreerrors.CodeOf(err))
+		}
+	})
+	t.Run("missing nonce", func(t *testing.T) {
+		h := base()
+		h.Del(HeaderNonce)
+		_, err := ParseHeaders(h)
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if coreerrors.CodeOf(err) != string(coreerrors.CodeMissingNonce) {
+			t.Fatalf("code = %q", coreerrors.CodeOf(err))
+		}
+	})
+	t.Run("missing signature", func(t *testing.T) {
+		h := base()
+		h.Del(HeaderSignature)
+		_, err := ParseHeaders(h)
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if coreerrors.CodeOf(err) != string(coreerrors.CodeMissingSignature) {
+			t.Fatalf("code = %q", coreerrors.CodeOf(err))
+		}
+	})
+}
+
+func TestParseHeaders_OddLengthSignatureHex(t *testing.T) {
+	t.Parallel()
+	h := make(http.Header)
+	h.Set(HeaderTimestamp, "1")
+	h.Set(HeaderNonce, "00112233445566778899aabb")
+	h.Set(HeaderSignature, "abc")
+	_, err := ParseHeaders(h)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if coreerrors.CodeOf(err) != string(coreerrors.CodeInvalidSignature) {
+		t.Fatalf("code = %q, want invalid_signature", coreerrors.CodeOf(err))
+	}
+}
+
+func TestParseHeaders_TrimSpace(t *testing.T) {
+	t.Parallel()
+	h := make(http.Header)
+	h.Set(HeaderTimestamp, "  1700000000  ")
+	h.Set(HeaderNonce, "  00112233445566778899aabb  ")
+	h.Set(HeaderSignature, "  abc  ")
+	_, err := ParseHeaders(h)
+	if err == nil {
+		t.Fatal("expected invalid signature (odd-length hex)")
+	}
+	// Valid 32-byte hex signature
+	sig := hex.EncodeToString(make([]byte, 32))
+	h.Set(HeaderSignature, "  "+sig+"  ")
+	parsed, err := ParseHeaders(h)
+	if err != nil {
+		t.Fatalf("ParseHeaders: %v", err)
+	}
+	if parsed.Timestamp != 1700000000 {
+		t.Fatalf("timestamp = %d", parsed.Timestamp)
+	}
+	if parsed.Nonce != "00112233445566778899aabb" {
+		t.Fatalf("nonce = %q", parsed.Nonce)
+	}
+	if parsed.Signature != sig {
+		t.Fatalf("signature not normalized: got %q want %q", parsed.Signature, sig)
+	}
+}
+
+func TestValidateTimestamp_PastBeyondSkew(t *testing.T) {
+	t.Parallel()
+	now := time.Unix(1000, 0).UTC()
+	err := ValidateTimestamp(1000-400, now, time.Minute)
+	if err == nil {
+		t.Fatal("expected stale error")
+	}
+	if coreerrors.CodeOf(err) != string(coreerrors.CodeInvalidField) {
+		t.Fatalf("code = %q", coreerrors.CodeOf(err))
+	}
+}
+
+func TestValidateTimestamp_FutureBeyondSkew(t *testing.T) {
+	t.Parallel()
+	now := time.Unix(1000, 0).UTC()
+	err := ValidateTimestamp(1000+400, now, time.Minute)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if coreerrors.CodeOf(err) != string(coreerrors.CodeInvalidField) {
+		t.Fatalf("code = %q", coreerrors.CodeOf(err))
+	}
+}
+
+func TestValidateTimestamp_ZeroSkewWindowUsesDefault(t *testing.T) {
+	t.Parallel()
+	now := time.Unix(1_000_000, 0).UTC()
+	if err := ValidateTimestamp(now.Unix(), now, 0); err != nil {
+		t.Fatalf("expected ok at exact now: %v", err)
+	}
+	past := now.Add(-6 * time.Minute)
+	if err := ValidateTimestamp(past.Unix(), now, 0); err == nil {
+		t.Fatal("expected beyond default 5m window")
+	}
+}
+
+func TestValidateTimestamp_UsesProvidedNow(t *testing.T) {
+	t.Parallel()
+	fixed := time.Unix(5000, 0).UTC()
+	if err := ValidateTimestamp(5000, fixed, time.Minute); err != nil {
+		t.Fatalf("expected ok: %v", err)
+	}
+}
+
+func TestVerifyBlobMap_MissingBlobMACKey(t *testing.T) {
+	t.Parallel()
+	_, err := VerifyBlobMap(map[string]any{"x": 1}, testKeyHex)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if coreerrors.CodeOf(err) != string(coreerrors.CodeBlobMACMissing) {
+		t.Fatalf("code = %q", coreerrors.CodeOf(err))
+	}
+}
+
+func TestVerifyBlobMap_BlobMACWrongType(t *testing.T) {
+	t.Parallel()
+	_, err := VerifyBlobMap(map[string]any{"blob_mac": 123}, testKeyHex)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if coreerrors.CodeOf(err) != string(coreerrors.CodeInvalidField) {
+		t.Fatalf("code = %q", coreerrors.CodeOf(err))
+	}
+}
+
+func TestVerifyBlobMap_WrongMAC(t *testing.T) {
+	t.Parallel()
+	payload := map[string]any{
+		"ciphertext_blob": "abc",
+		"blob_mac":        "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+	}
+	_, err := VerifyBlobMap(payload, testKeyHex)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if coreerrors.CodeOf(err) != string(coreerrors.CodeBlobMACVerificationFailed) {
+		t.Fatalf("code = %q", coreerrors.CodeOf(err))
+	}
+}
+
+func TestVerifyBlobPayload_InvalidJSON(t *testing.T) {
+	t.Parallel()
+	_, err := VerifyBlobPayload([]byte(`{`), testKeyHex)
+	if err == nil {
+		t.Fatal("expected json error")
+	}
+	var syntax *json.SyntaxError
+	if !errors.As(err, &syntax) {
+		t.Fatalf("expected json.SyntaxError, got %v", err)
+	}
+}
+
+func TestSignRequest_CanonicalBodyLineEndingsAffectSignature(t *testing.T) {
+	t.Parallel()
+	opts := SignOptions{
+		Now:   time.Unix(99, 0).UTC(),
+		Nonce: "00112233445566778899aabb",
+	}
+	a, err := SignRequest(testKeyHex, "dorsalmail", "POST", "/x", []byte("a\nb"), opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := SignRequest(testKeyHex, "dorsalmail", "POST", "/x", []byte("a\r\nb"), opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a.Signature == b.Signature {
+		t.Fatal("signatures must differ when body bytes differ")
 	}
 }
