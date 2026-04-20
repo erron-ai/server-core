@@ -90,6 +90,21 @@ func TestPixelTokenRejectedAsClick(t *testing.T) {
 	}
 }
 
+func TestClickTokenRejectedAsPixel(t *testing.T) {
+	t.Parallel()
+	id := uuid.MustParse("11111111-2222-3333-4444-555555555555")
+	target := "https://example.com/x"
+	urlStr, err := IssueClickURL(id, target, testKeyHex, "https://api.example")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tok := strings.TrimPrefix(urlStr, "https://api.example/v1/tracking/click/")
+	tok = strings.SplitN(tok, "?", 2)[0]
+	if _, err := VerifyPixelRequest(tok, testKeyHex); err == nil {
+		t.Fatal("click token must not verify as pixel")
+	}
+}
+
 func TestTagFullLength(t *testing.T) {
 	id := uuid.New()
 	urlStr, _ := IssueClickURL(id, "https://x", testKeyHex, "")

@@ -2,6 +2,7 @@ package enclaveauth
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -58,5 +59,63 @@ func TestRefreshAllowsNewFlightAfterCompletion(t *testing.T) {
 	}
 	if got := atomic.LoadInt32(&calls); got != 2 {
 		t.Fatalf("want 2 sequential calls, got %d", got)
+	}
+}
+
+func TestRefresh_ErrorSharedByAllWaiters(t *testing.T) {
+	t.Parallel()
+	want := errors.New("bootstrap failed")
+	var rb Rebootstrapper
+	fn := func(ctx context.Context) (string, error) {
+		return "", want
+	}
+	const n = 20
+	var wg sync.WaitGroup
+	wg.Add(n)
+	for i := 0; i < n; i++ {
+		go func() {
+			defer wg.Done()
+			_, err := rb.Refresh(context.Background(), fn)
+			if !errors.Is(err, want) {
+				t.Errorf("got %v", err)
+			}
+		}()
+	}
+	wg.Wait()
+}
+
+// regression: second caller with canceled context still receives singleflight result
+// from the first (stdlib singleflight behavior).
+func TestRefresh_CanceledSecondCallerStillGetsResult(t *testing.T) {
+	t.Parallel()
+	var rb Rebootstrapper
+	var calls int32
+	fn := func(ctx context.Context) (string, error) {
+		atomic.AddInt32(&calls, 1)
+		time.Sleep(40 * time.Millisecond)
+		return "ok", nil
+	}
+	ctx1 := context.Background()
+	ctx2, cancel2 := context.WithCancel(context.Background())
+	cancel2()
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	var err1, err2 error
+	go func() {
+		defer wg.Done()
+		_, err1 = rb.Refresh(ctx1, fn)
+	}()
+	go func() {
+		defer wg.Done()
+		time.Sleep(5 * time.Millisecond)
+		_, err2 = rb.Refresh(ctx2, fn)
+	}()
+	wg.Wait()
+	if err1 != nil || err2 != nil {
+		t.Fatalf("err1=%v err2=%v", err1, err2)
+	}
+	if atomic.LoadInt32(&calls) != 1 {
+		t.Fatalf("calls = %d", calls)
 	}
 }

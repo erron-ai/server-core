@@ -11,6 +11,7 @@ package attest
 import (
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -53,5 +54,26 @@ func ParseChallengeRequest(raw []byte) (ChallengeRequest, []byte, error) {
 }
 
 func ErrorCode(err error) string {
-	return coreerrors.CodeOf(err)
+	if err == nil {
+		return ""
+	}
+	if c := coreerrors.CodeOf(err); c != "" {
+		return c
+	}
+	switch {
+	case errors.Is(err, ErrNoAllowlist):
+		return "attest_no_allowlist"
+	case errors.Is(err, ErrChainUnverified):
+		return "attest_chain_unverified"
+	case errors.Is(err, ErrNonceMismatch):
+		return "attest_nonce_mismatch"
+	case errors.Is(err, ErrPCRMismatch):
+		return "attest_pcr_mismatch"
+	case errors.Is(err, ErrTooOld):
+		return "attest_too_old"
+	case errors.Is(err, ErrMalformedDoc):
+		return "attest_malformed_doc"
+	default:
+		return ""
+	}
 }

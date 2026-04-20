@@ -41,7 +41,7 @@ type Measurements struct {
 // Sentinel errors returned by ParseAndVerify so callers can branch
 // without string matching.
 var (
-	ErrNoAllowlist     = errors.New("attest: empty PCR allowlist not permitted in production")
+	ErrNoAllowlist = errors.New("attest: empty PCR allowlist not permitted in production")
 	// ErrChainUnverified is returned when the embedded root CA is missing or
 	// chain building fails before COSE verification (distinct from ErrMalformedDoc).
 	ErrChainUnverified = errors.New("attest: NSM certificate chain could not be verified against embedded root")
@@ -81,6 +81,10 @@ type nsmDocOuter struct {
 // constant-time compare, the timestamp MUST be within `maxAge` of
 // `now`, and the PCRs MUST match at least one entry in `allow`
 // (when `allow` is non-empty).
+// verifyNitroCOSEFunc is the production COSE verifier; tests may swap it to
+// assert policy outcomes without shipping golden attestation blobs.
+var verifyNitroCOSEFunc = verifyNitroCOSE
+
 func ParseAndVerify(doc, expectedNonce []byte, allow []PCRSet, maxAge time.Duration, now time.Time) (Measurements, error) {
 	if corecfg.InProduction() {
 		if len(allow) == 0 {
@@ -89,7 +93,7 @@ func ParseAndVerify(doc, expectedNonce []byte, allow []PCRSet, maxAge time.Durat
 		if len(nitroRootPEM) == 0 {
 			return Measurements{}, ErrChainUnverified
 		}
-		return verifyNitroCOSE(doc, nitroRootPEM, expectedNonce, allow, maxAge, now)
+		return verifyNitroCOSEFunc(doc, nitroRootPEM, expectedNonce, allow, maxAge, now)
 	}
 
 	var outer nsmDocOuter

@@ -4,8 +4,10 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -32,6 +34,75 @@ type clickVector struct {
 
 type clickVectorFile struct {
 	Vectors []clickVector `json:"vectors"`
+}
+
+func TestVectorsIssueClickAndPixelURLs(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("testdata", "click_v1.json"))
+	if err != nil {
+		t.Fatalf("read click_v1.json: %v", err)
+	}
+	var file clickVectorFile
+	if err := json.Unmarshal(raw, &file); err != nil {
+		t.Fatalf("unmarshal click_v1.json: %v", err)
+	}
+	for _, v := range file.Vectors {
+		if !v.Verifies {
+			continue
+		}
+		t.Run(v.Name, func(t *testing.T) {
+			id := uuid.MustParse(v.EmailID)
+			switch v.Kind {
+			case "click":
+				gotURL, err := coretracking.IssueClickURL(id, v.Target, v.KeyHex, v.BaseURL)
+				if err != nil {
+					t.Fatalf("IssueClickURL: %v", err)
+				}
+				u, err := url.Parse(gotURL)
+				if err != nil {
+					t.Fatal(err)
+				}
+				exp, err := url.Parse(v.URL)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if u.Scheme != exp.Scheme || u.Host != exp.Host || u.Path != exp.Path {
+					t.Fatalf("url mismatch\n got: %s\nwant: %s", gotURL, v.URL)
+				}
+				gotTok := strings.TrimPrefix(u.Path, "/v1/tracking/click/")
+				if i := strings.IndexByte(gotTok, '?'); i >= 0 {
+					gotTok = gotTok[:i]
+				}
+				if gotTok != v.Token {
+					t.Fatalf("token mismatch\n got: %s\nwant: %s", gotTok, v.Token)
+				}
+				if u.Query().Get("u") != v.Target {
+					t.Fatalf("target query mismatch")
+				}
+			case "pixel":
+				gotURL, err := coretracking.IssuePixelURL(id, v.KeyHex, v.BaseURL)
+				if err != nil {
+					t.Fatalf("IssuePixelURL: %v", err)
+				}
+				u, err := url.Parse(gotURL)
+				if err != nil {
+					t.Fatal(err)
+				}
+				exp, err := url.Parse(v.URL)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if u.Scheme != exp.Scheme || u.Host != exp.Host || u.Path != exp.Path {
+					t.Fatalf("url mismatch\n got: %s\nwant: %s", gotURL, v.URL)
+				}
+				gotTok := strings.TrimPrefix(u.Path, "/v1/tracking/pixel/")
+				if gotTok != v.Token {
+					t.Fatalf("token mismatch\n got: %s\nwant: %s", gotTok, v.Token)
+				}
+			default:
+				t.Fatalf("unknown kind %q", v.Kind)
+			}
+		})
+	}
 }
 
 func TestVectorsTrackingClickV1(t *testing.T) {

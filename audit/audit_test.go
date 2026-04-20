@@ -96,3 +96,20 @@ func TestEntryHashDeterministic(t *testing.T) {
 		t.Fatalf("EntryHash should change when prev hash changes")
 	}
 }
+
+// regression: NormalizeEvent fills nil ID and zero CreatedAt; timestamps are UTC.
+func TestNormalizeEvent_NilIDAndZeroCreatedAt(t *testing.T) {
+	t.Parallel()
+	ev := NormalizeEvent(Event{})
+	if ev.EventID == uuid.Nil {
+		t.Fatal("expected non-nil EventID")
+	}
+	if ev.CreatedAt.Location() != time.UTC {
+		t.Fatalf("location = %v", ev.CreatedAt.Location())
+	}
+	fixed := time.Date(2024, 3, 1, 12, 0, 0, 0, time.FixedZone("EST", -5*3600))
+	ev2 := NormalizeEvent(Event{CreatedAt: fixed})
+	if ev2.CreatedAt.Location() != time.UTC {
+		t.Fatalf("expected UTC normalization, got %v", ev2.CreatedAt.Location())
+	}
+}
