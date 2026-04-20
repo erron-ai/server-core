@@ -9,14 +9,14 @@ This document lists **deliberate, high-signal** tests for `github.com/erron-ai/s
 
 **Legend:** P0 = correctness or security critical; P1 = strong regression value; P2 = operational / polish.
 
+**Scope:** This backlog is for **local and manual** test development. It does **not** prescribe continuous integration, scheduled jobs, or pipeline gates (including race builds, fuzz jobs, or required PR checks).
+
 ---
 
 ## Cross-cutting
 
 | Priority | Test type | What | Why |
 |----------|-----------|------|-----|
-| P0 | `go test -race` | Run on packages with mutexes + globals: `replay`, `ratelimit`, `httpx` | Catches map/goroutine regressions. |
-| P0 | Fuzz (where safe) | `attest.ParseChallengeRequest`, `attest.ParsePCRAllowlistJSON`, `auth.ParseHeaders` (valid UTF-8 / arbitrary bytes → must not panic; oracle = strict JSON/base64 rules) | No fuzz targets exist in-repo today. |
 | P1 | Golden / vector parity | Extend `vectors/` so **issuance** matches **verification** for the same fixtures (see Tracking). | Prevents drift between “issue URL” and “verify token” in different services. |
 
 ---
@@ -97,7 +97,7 @@ This document lists **deliberate, high-signal** tests for `github.com/erron-ai/s
 |----------|------------|----------------|
 | P0 | `AttemptCounter` | **Redis stub**: increment sequence; `max <= 0` disables block; boundary **`c > max`** (not `>=`) per `replay.go`. |
 | P0 | In-memory path | `ttl > 0` expiry clears counter (requires injectable clock or small refactor); **`ttl == 0`** never ages out except `Reset` / restart — document with test. |
-| P0 | Concurrency | Parallel increments same key with `rdb == nil` under `-race` — linearizable count. |
+| P0 | Concurrency | Parallel increments same key with `rdb == nil`; assert final count matches expected serial semantics (no lost updates). |
 | P1 | `ClassifyExisting` | Empty stored fingerprint → `OutcomeNoState`; mismatch; empty request FP with non-empty stored; whitespace-only `storedBody`; non-empty `storedBody` with `{}` still cached. |
 
 ---
@@ -126,7 +126,7 @@ This document lists **deliberate, high-signal** tests for `github.com/erron-ai/s
 | P0 | `EntryHash` / `Preimage` | Assert parity with **`vectors/testdata/audit_entry_hash.json`** (hashes mentioned in `audit.go` — **wire golden into test**). |
 | P1 | `NormalizeEvent` | Nil `EventID`; zero `CreatedAt`; non-UTC `CreatedAt` normalized; default `EventType` / `ActorType` / `Outcome`. |
 | P1 | `WriteEntry` | Stub `Tx`: optional fields NULL vs empty; `OrgID == nil` advisory key behavior; lock query present. |
-| P0 | Integration | Existing `writer_test.go` integration tests — keep for advisory lock + concurrency; gate on `PG_TEST_DSN`. |
+| P0 | Integration | Existing `writer_test.go` integration tests — keep for advisory lock + concurrency; run only when `PG_TEST_DSN` is set locally. |
 
 ---
 
